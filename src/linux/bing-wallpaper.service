@@ -1,0 +1,6 @@
+[Unit]
+Description=Download Bing image and set wallpaper
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/bing-wallpaper.sh -w -L -m pt-BR -r UHD
