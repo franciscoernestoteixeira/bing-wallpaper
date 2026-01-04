@@ -5,10 +5,10 @@ A simple, cross-platform shell script that downloads Bing’s daily wallpaper an
 Based on the original project:  
 https://github.com/thejandroman/bing-wallpaper
 
-Supported environments:
+## Supported environments
 
-- Fedora KDE
-- Debian / Ubuntu
+- Fedora (KDE Plasma)
+- Debian / Ubuntu (KDE Plasma or GNOME)
 - macOS
 
 ---
@@ -18,10 +18,14 @@ Supported environments:
 - Fetches Bing’s “image of the day” metadata (XML)
 - Downloads the image in the chosen resolution
 - Saves it under a local folder (default: `~/Pictures/bing-wallpapers`)
-- Optionally sets it as the current wallpaper depending on your desktop environment:
-  - KDE Plasma: `plasma-apply-wallpaperimage`
-  - GNOME: `gsettings`
-  - macOS: `osascript`
+- Optionally sets it as your wallpaper depending on the detected desktop environment:
+  - **KDE Plasma (desktop)**: `plasma-apply-wallpaperimage`
+  - **KDE Plasma (lock screen, user-level)**: `kwriteconfig5` / `kwriteconfig6`
+  - **GNOME**: `gsettings`
+  - **macOS**: `osascript`
+
+All operations run strictly at **user level**.  
+No `sudo`, no system-wide configuration, no login-screen modification.
 
 ---
 
@@ -38,7 +42,9 @@ Supported environments:
                              UHD | 1920x1200 | 1920x1080 | 800x480 | 400x240
                              (default: UHD)
 
--w, --set-wallpaper          Set the downloaded image as wallpaper
+-w, --set-wallpaper          Set the downloaded image as desktop wallpaper
+
+-L, --set-lockscreen         Also set KDE lock screen background (user-level)
 
 -f, --force                  Force re-download even if file exists
 
@@ -60,13 +66,15 @@ chmod +x ./src/bing-wallpaper.sh
 Run it:
 
 ```bash
-./src/bing-wallpaper.sh -w -L -S -m pt-BR -r UHD
+./src/bing-wallpaper.sh -w -L -m pt-BR -r UHD
 ```
 
 This will:
+
 1. Download Bing’s image of the day
 2. Save it locally
-3. Set it as your wallpaper (when supported)
+3. Set it as the desktop wallpaper
+4. Set the KDE lock screen wallpaper (if running KDE and `-L` is used)
 
 ---
 
@@ -74,17 +82,16 @@ This will:
 
 Bing supports many regional markets such as `en-US`, `pt-BR`, `en-GB`, etc.
 
-Official list:
-
+Official list:  
 https://github.com/MicrosoftDocs/bing-docs/blob/main/bing-docs/bing-web-search/reference/market-codes.md
 
 ---
 
 ## Scheduling on Linux (Fedora KDE / Debian / Ubuntu)
 
-If your distro uses **systemd**, the cleanest approach is a **user service + user timer**.
+If your distro uses **systemd**, the recommended approach is a **user service + user timer**.
 
-### 1) Move the script to a stable path
+### 1) Copy the script to a stable path
 
 ```bash
 mkdir -p ~/.local/bin
@@ -92,15 +99,17 @@ cp ./src/bing-wallpaper.sh ~/.local/bin/bing-wallpaper.sh
 chmod +x ~/.local/bin/bing-wallpaper.sh
 ```
 
-### 2) Create a user service
+### 2) Copy the user service
 
 ```bash
+mkdir -p ~/.config/systemd/user
 cp ./src/linux/bing-wallpaper.service ~/.config/systemd/user/bing-wallpaper.service
 ```
 
-### 3) Create a user timer
+### 3) Copy the user timer
 
 ```bash
+mkdir -p ~/.config/systemd/user
 cp ./src/linux/bing-wallpaper.timer ~/.config/systemd/user/bing-wallpaper.timer
 ```
 
@@ -116,12 +125,9 @@ systemctl --user list-timers | grep bing
 
 ## Scheduling on macOS (launchd)
 
-Use a LaunchAgent to run the script automatically **when the user logs in** (recommended).
-You can also add an optional interval (every N hours) or a fixed daily time.
+Use a **LaunchAgent** to run the script automatically when the user logs in, or on a schedule.
 
 ### 1) Put the script in a stable path
-
-Example:
 
 ```bash
 mkdir -p ~/.local/bin
@@ -133,11 +139,11 @@ chmod +x ~/.local/bin/bing-wallpaper.sh
 
 Create:
 
-```text
+```
 ~/Library/LaunchAgents/com.francisco.bing-wallpaper.plist
 ```
 
-Content (runs on login):
+Content:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -147,34 +153,15 @@ Content (runs on login):
     <key>Label</key>
     <string>com.francisco.bing-wallpaper</string>
 
-    <!-- Run automatically when the user logs in -->
     <key>RunAtLoad</key>
     <true/>
 
-    <!-- Command to execute -->
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
       <string>-lc</string>
       <string>~/.local/bin/bing-wallpaper.sh -w -m pt-BR -r UHD</string>
     </array>
-
-    <!-- Optional: also run every N seconds (example: every 6 hours = 21600) -->
-    <!--
-    <key>StartInterval</key>
-    <integer>21600</integer>
-    -->
-
-    <!-- Optional: also run daily at a fixed time (example: 09:00) -->
-    <!--
-    <key>StartCalendarInterval</key>
-    <dict>
-      <key>Hour</key>
-      <integer>9</integer>
-      <key>Minute</key>
-      <integer>0</integer>
-    </dict>
-    -->
 
     <key>StandardOutPath</key>
     <string>/tmp/bing-wallpaper.out.log</string>
@@ -184,19 +171,10 @@ Content (runs on login):
 </plist>
 ```
 
-### 3) Load / unload (enable / disable)
-
-Load:
+Load it:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.francisco.bing-wallpaper.plist 2>/dev/null || true
 launchctl load ~/Library/LaunchAgents/com.francisco.bing-wallpaper.plist
-```
-
-Unload:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.francisco.bing-wallpaper.plist
 ```
 
 Verify:
@@ -205,24 +183,18 @@ Verify:
 launchctl list | grep com.francisco.bing-wallpaper || true
 ```
 
-### 4) Debugging
-
-```bash
-tail -n 200 /tmp/bing-wallpaper.out.log
-tail -n 200 /tmp/bing-wallpaper.err.log
-```
-
 ---
 
 ## Notes
 
-- Fedora KDE 43: `plasma-apply-wallpaperimage` is available by default and is the simplest KDE method.
-- GNOME: the script uses `gsettings` and may behave slightly differently across GNOME versions.
-- macOS: wallpaper is set via `osascript` and applies to all desktops/spaces.
+- **KDE Plasma**: `plasma-apply-wallpaperimage` is the cleanest and fastest solution.
+- **KDE lock screen** changes are written to `~/.config/kscreenlockerrc` only.
+- **GNOME** behavior may vary slightly across versions.
+- **macOS** wallpaper is applied to all desktops/spaces.
 
 ---
 
 ## License
 
-This repository is based on the upstream script.  
-If you publish this as a separate repo, keep attribution to the original project and align licensing as appropriate.
+This project is based on the upstream script.  
+If published as a separate repository, keep attribution to the original project and align licensing accordingly.

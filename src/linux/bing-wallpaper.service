@@ -1,5 +1,5 @@
 [Unit]
-Description=Download Bing image and set wallpaper
+Description=Bing daily wallpaper
 
 [Service]
 Type=oneshot
